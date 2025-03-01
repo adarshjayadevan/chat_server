@@ -16,7 +16,7 @@ const register = async(req,res) => {
             mobile
         })
         await newUser.save();
-        res.status(201).json({ message: `user registered` })
+        res.status(201).json({status:true, message: `user registered` })
     } catch (error) {
         res.status(500).json({message:error.message})
     }

@@ -12,6 +12,10 @@ const {
 const { verifyToken } = require('../utils/verifyToken');
 const router = express.Router();
 
+router.get('/',(req,res)=>{
+    res.send(`CHAT SERVER`);
+})
+
 router.post('/register',register);
 router.post('/login',login);
 router.post('/group',verifyToken,createGroup);
