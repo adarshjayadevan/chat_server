@@ -12,9 +12,9 @@ const {
 const { verifyToken } = require('../utils/verifyToken');
 const router = express.Router();
 
-router.get('/',(req,res)=>{
-    res.send(`CHAT SERVER`);
-})
+// router.get('/',(req,res)=>{
+//     res.send(`CHAT SERVER`);
+// })
 
 router.post('/register',register);
 router.post('/login',login);
