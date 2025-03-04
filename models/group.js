@@ -5,6 +5,9 @@ const groupSchema = new mongoose.Schema({
         type: String,
         required: true
     },
+    groupImage: {
+        type: String,
+    },
     createdBy: {
         type: mongoose.Schema.Types.ObjectId,
         required: true

@@ -30,7 +30,7 @@ const login = async (req, res) => {
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) return res.status(400).json({ message: 'invalid email or password' });
         const token = jwt.sign({ user:true, id: user._id, name: user.name, mobile: user.mobile }, process.env.SECRET,{ expiresIn: "10h" });
-        res.status(200).json({ status:true, message: 'login successful', token })
+        res.status(200).json({ status:true, message: 'login successful', token, profileImage:user.profileImage })
     } catch (error) {
         res.status(500).json({ message: `Error -> ${error.message}` })
     }

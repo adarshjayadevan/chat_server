@@ -3,6 +3,7 @@ const IndividualChat = require('../models/personalChat');
 const GroupChat = require('../models/groupChat');
 const User = require('../models/users');
 const mongoose = require('mongoose');
+const { fileToBase64 } = require('../utils/fileConverter');
 
 const allUsers = async (req, res) => {
     try {
@@ -85,11 +86,11 @@ const createGroup = async (req, res) => {
         const { name, createdBy } = req.body;
         const newGroup = new Group({
             name,
-            createdBy,
-            members: [createdBy]
+            createdBy:req["userId"],
+            members: [req["userId"]]
         })
         await newGroup.save();
-        res.status(201).json({ message: `Group ${name} created` });
+        res.status(201).json({ message: `Group ${name} created`, groupId:newGroup["_id"] });
     } catch (error) {
         res.status(500).json({ message: error.message })
     }
@@ -282,6 +283,27 @@ const getGroupMessages = async (req, res) => {
     }
 }
 
+const updateUserProfile = async(req,res) => {
+    try {
+        const user = await User.findById(req['userId']);
+        if(!user){
+            return res.status(400).json({ message: `User does not exist` });   
+        }
+        let fileString;
+        if (req.file) {
+            fileString = fileToBase64(req.file);
+        }
+        const updatedUser = await User.findOneAndUpdate({ _id: req['userId'] }, {
+            $set: {
+                profileImage: req.file ? fileString : user.profileImage
+            }
+        }, { new: true })
+        res.status(201).json({ message: `User Updated`, image: updatedUser.profileImage })
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+}
+
 module.exports = {
     createGroup,
     addMembers,
@@ -289,5 +311,6 @@ module.exports = {
     getMessages,
     allUsers,
     newChat,
-    getGroupMessages
+    getGroupMessages,
+    updateUserProfile,
 }
