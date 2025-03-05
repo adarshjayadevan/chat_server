@@ -112,7 +112,17 @@ const addMembers = async (req, res) => {
 
 const getContacts = async (req, res) => {
     try {
-        const { userId } = req.body;
+        const { userId, search } = req.body;
+        let nameMatch = {};
+        let groupMatch = {};
+        if(search&&search!=''){
+            nameMatch = {
+                receiver: { $regex: search, $options: "i" }
+            }
+            groupMatch = {
+                name: { $regex: search, $options: "i" }
+            }
+        }
         const userChats = await IndividualChat.aggregate([
             {
                 '$match': {
@@ -152,6 +162,8 @@ const getContacts = async (req, res) => {
                     'receiver': '$receiver.name',
                     'messages': { '$arrayElemAt': ["$messages", -1] }
                 }
+            }, {
+                '$match':nameMatch
             }
         ]);
         const userGroups = await Group.aggregate([
@@ -161,6 +173,8 @@ const getContacts = async (req, res) => {
                         '$in': [new mongoose.Types.ObjectId(userId)]
                     }
                 }
+            }, {
+                '$match':groupMatch
             }
         ])
         res.status(200).json({ data: [...userChats, ...userGroups] });
