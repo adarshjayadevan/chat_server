@@ -4,7 +4,7 @@ const User = require('../models/users');
 const GroupChat = require('../models/groupChat');
 const IndividualChat = require('../models/personalChat');
 
-const connections = {};
+const connections = {}; // Stores active WebSocket connections
 
 const handleMessage = async (bytes, userId, chatType, chatId) => {
     const messageData = JSON.parse(bytes.toString());
@@ -17,24 +17,20 @@ const handleMessage = async (bytes, userId, chatType, chatId) => {
     if (chatType === 'group') {
         let chat = await GroupChat.findOneAndUpdate(
             { groupId: chatId },
-            {
-                sender: userId,
-                $push: { messages: newMessage }
-            },
+            { $push: { messages: newMessage } },
             { new: true, upsert: true }
         );
         broadcastGroup(chatId, newMessage);
     } else if (chatType === 'single') {
         let chatMembers = chatId.split('-');
-        let receiver = chatMembers.filter(member => member != userId)
+        let receiver = chatMembers.find(member => member !== userId);
+
         let chat = await IndividualChat.findOneAndUpdate(
             { chatId },
-            { $push: { messages: newMessage }, $addToSet: { participants: [userId, receiver[0]] } },
+            { $push: { messages: newMessage }, $addToSet: { participants: [userId, receiver] } },
             { new: true, upsert: true }
         );
-        const chatMessages = await IndividualChat.findOne({chatId}).lean();
-        const lastMessage = chatMessages.messages[chatMessages.messages.length-1]
-        sendToUser(chatId, lastMessage);
+        sendToUser(userId, receiver, chatId, newMessage);
     }
 };
 
@@ -44,15 +40,22 @@ const handleClose = (userId) => {
 };
 
 const broadcastGroup = async (groupId, message) => {
-    Object.values(connections).forEach(connection => {
-        connection.send(JSON.stringify({ type: 'group', groupId, message }));
+    Object.values(connections).forEach((ws, userId) => {
+        GroupChat.findOne({ groupId }).then(chat => {
+            if (chat && chat.participants.includes(userId)) {
+                ws.send(JSON.stringify({ type: 'group', groupId, message }));
+            }
+        });
     });
 };
 
-const sendToUser = async (chatId, message) => {
-    Object.keys(connections).forEach(userId => {
-        connections[userId].send(JSON.stringify({ type: 'single', chatId, message }));
-    });
+const sendToUser = async (senderId, receiverId, chatId, message) => {
+    if (connections[receiverId]) {
+        connections[receiverId].send(JSON.stringify({ type: 'single', chatId, message }));
+    }
+    if (connections[senderId]) {
+        connections[senderId].send(JSON.stringify({ type: 'single', chatId, message }));
+    }
 };
 
 const handleConnection = async (ws, request) => {

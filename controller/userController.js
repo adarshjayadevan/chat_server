@@ -148,6 +148,7 @@ const getContacts = async (req, res) => {
                     'receiverId': {
                         '$toString': '$receiver._id'
                     },
+                    'receiverImage': '$receiver.profileImage',
                     'receiver': '$receiver.name',
                     'messages': { '$arrayElemAt': ["$messages", -1] }
                 }
@@ -202,6 +203,7 @@ const getMessages = async (req, res) => {
                     'receiverId': {
                         '$toString': '$receiver._id'
                     },
+                    'receiverImage': '$receiver.profileImage',
                     'receiver': '$receiver.name'
                 }
             }
