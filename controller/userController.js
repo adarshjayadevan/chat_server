@@ -90,6 +90,12 @@ const createGroup = async (req, res) => {
             members: [req["userId"]]
         })
         await newGroup.save();
+        const newGroupConversation = new GroupChat({
+            groupId:newGroup["_doc"]._id.toString(),
+            groupName:name,
+            messages:[]
+        })
+        await newGroupConversation.save()
         res.status(201).json({ message: `Group ${name} created`, groupId:newGroup["_id"] });
     } catch (error) {
         res.status(500).json({ message: error.message })
