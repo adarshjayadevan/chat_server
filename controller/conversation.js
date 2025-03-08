@@ -43,18 +43,18 @@ const handleMessage = async (bytes, userId, chatType, chatId) => {
     }
 };
 
-const handleClose = (userId) => {
+const handleClose = (userId,chatId) => {
     console.log(`User ${userId} disconnected`);
-    if (connections[userId]) {
-        delete connections[userId];
+    if (connections[`${userId}_${chatId}`]) {
+        delete connections[`${userId}_${chatId}`];
     }
 };
 
 const broadcastGroup = async (groupId, message, members) => {
     members.forEach(memberId => {
-        if (connections[memberId]) {
+        if (connections[`${memberId}_${groupId}`]) {
             try {
-                connections[memberId].send(JSON.stringify({ type: 'group', groupId, message }));
+                connections[`${memberId}_${groupId}`].send(JSON.stringify({ type: 'group', groupId, message }));
             } catch (error) {
                 console.error(`Error sending message to ${memberId}:`, error);
             }
@@ -64,9 +64,9 @@ const broadcastGroup = async (groupId, message, members) => {
 
 const sendToUser = async (senderId, receiverId, chatId, message) => {
     [senderId, receiverId].forEach(userId => {
-        if (connections[userId]) {
+        if (connections[`${userId}_${chatId}`]) {
             try {
-                connections[userId].send(JSON.stringify({ type: 'single', chatId, message }));
+                connections[`${userId}_${chatId}`].send(JSON.stringify({ type: 'single', chatId, message }));
             } catch (error) {
                 console.error(`Error sending message to ${userId}:`, error);
             }
@@ -79,7 +79,7 @@ const handleConnection = async (ws, request) => {
         const { chatId, type, userId } = url.parse(request.url, true).query;
 
         console.log(`User ${userId} connected to ${type} chat with chatId: ${chatId}`);
-        connections[userId] = ws;
+        connections[`${userId}_${chatId}`] = ws;
 
         let chatHistory = [];
 
@@ -94,7 +94,7 @@ const handleConnection = async (ws, request) => {
         ws.send(JSON.stringify({ type, chatId, messages: chatHistory }));
 
         ws.on('message', message => handleMessage(message, userId, type, chatId));
-        ws.on('close', () => handleClose(userId));
+        ws.on('close', () => handleClose(userId,chatId));
         ws.on('error', (err) => {
             console.error(`WebSocket error for user ${userId}:`, err);
         });
