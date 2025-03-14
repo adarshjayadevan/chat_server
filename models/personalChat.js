@@ -5,7 +5,8 @@ const individualChatSchema = new mongoose.Schema({
     participants: [{ type: mongoose.Schema.Types.ObjectId }], // Chat participants
     messages: [{
         sender: { type: mongoose.Schema.Types.ObjectId},
-        text: String,
+        type: { type: String, required: true },
+        messageId:{ type: mongoose.Schema.Types.ObjectId},
         timestamp: { type: Date, default: ()=>new Date() }
     }]
 });

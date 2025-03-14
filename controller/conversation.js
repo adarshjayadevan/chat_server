@@ -3,6 +3,7 @@ const WebSocket = require('ws');
 const User = require('../models/users');
 const Group = require('../models/group');
 const GroupChat = require('../models/groupChat');
+const Message = require('../models/messages');
 const IndividualChat = require('../models/personalChat');
 
 const connections = {}; // Stores active WebSocket connections per user
@@ -11,15 +12,39 @@ const handleMessage = async (bytes, userId, chatType, chatId) => {
     try {
         const messageData = JSON.parse(bytes.toString());
 
-        const newMessage = {
-            sender: userId,
-            text: messageData.text,
-        };
+        let newMessage = {};
+        let messageType = `text` ;
+        if(messageData.text){
+            newMessage["text"] = messageData.text;
+            newMessage["sender"] = userId;
+            newMessage["type"] = `text`;
+        }else if(messageData.audio){
+            messageType = `audio`
+            newMessage["audio"] = messageData.audio;
+            newMessage["sender"] = userId;
+            newMessage["type"] = `audio`;
+        }
 
         if (chatType === 'group') {
+            let freshMessage = {} ;
+            if(messageData.text){
+                freshMessage = new Message({
+                    message:messageData.text
+                })
+            }else if(messageData.audio){
+                freshMessage = new Message({
+                    message:messageData.audio
+                })
+            }            
+            await freshMessage.save();
+            newMessage["_id"] = freshMessage["_id"];
             let chat = await GroupChat.findOneAndUpdate(
                 { groupId: chatId },
-                { $push: { messages: newMessage } },
+                { $push: { messages: {
+                    sender:userId,
+                    type: messageType,
+                    messageId:freshMessage["_id"]
+                } } },
                 { new: true, upsert: true }
             );
             const groupData = await Group.findById(chatId).lean();
@@ -30,10 +55,25 @@ const handleMessage = async (bytes, userId, chatType, chatId) => {
         } else if (chatType === 'single') {
             let chatMembers = chatId.split('-');
             let receiver = chatMembers.find(member => member !== userId);
-
+            let freshMessage = {} ;
+            if(messageData.text){
+                freshMessage = new Message({
+                    message:messageData.text
+                })
+            }else if(messageData.audio){
+                freshMessage = new Message({
+                    message:messageData.audio
+                })
+            } 
+            await freshMessage.save();
+            newMessage["_id"] = freshMessage["_id"];
             let chat = await IndividualChat.findOneAndUpdate(
                 { chatId },
-                { $push: { messages: newMessage }, $addToSet: { participants: [userId, receiver] } },
+                { $push: { messages: {
+                    sender:userId,
+                    type: messageType,
+                    messageId:freshMessage["_id"]
+                } }, $addToSet: { participants: [userId, receiver] } },
                 { new: true, upsert: true }
             );
             sendToUser(userId, receiver, chatId, newMessage);

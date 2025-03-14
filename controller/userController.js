@@ -86,17 +86,17 @@ const createGroup = async (req, res) => {
         const { name, createdBy } = req.body;
         const newGroup = new Group({
             name,
-            createdBy:req["userId"],
+            createdBy: req["userId"],
             members: [req["userId"]]
         })
         await newGroup.save();
         const newGroupConversation = new GroupChat({
-            groupId:newGroup["_doc"]._id.toString(),
-            groupName:name,
-            messages:[]
+            groupId: newGroup["_doc"]._id.toString(),
+            groupName: name,
+            messages: []
         })
         await newGroupConversation.save()
-        res.status(201).json({ message: `Group ${name} created`, groupId:newGroup["_id"] });
+        res.status(201).json({ message: `Group ${name} created`, groupId: newGroup["_id"] });
     } catch (error) {
         res.status(500).json({ message: error.message })
     }
@@ -121,7 +121,7 @@ const getContacts = async (req, res) => {
         const { userId, search } = req.body;
         let nameMatch = {};
         let groupMatch = {};
-        if(search&&search!=''){
+        if (search && search != '') {
             nameMatch = {
                 receiver: { $regex: search, $options: "i" }
             }
@@ -169,7 +169,51 @@ const getContacts = async (req, res) => {
                     'messages': { '$arrayElemAt': ["$messages", -1] }
                 }
             }, {
-                '$match':nameMatch
+                '$lookup': {
+                    'from': 'messages',
+                    'localField': 'messages.messageId',
+                    'foreignField': '_id',
+                    'as': 'result'
+                }
+            }, {
+                '$unwind': {
+                    'path': '$result'
+                }
+            }, {
+                '$addFields': {
+                    'dynamicKey': {
+                        '$arrayToObject': [
+                            [
+                                {
+                                    'k': '$messages.type',
+                                    'v': '$result.message'
+                                }
+                            ]
+                        ]
+                    }
+                }
+            },
+            // {
+            //     '$addFields': {
+            //         'messages.text': '$result.message',
+            //         'result': '$$REMOVE'
+            //     }
+            // },
+            {
+                '$project':{
+                    'messages': {
+                        '$mergeObjects': [
+                            '$messages', '$dynamicKey'
+                        ]
+                    },
+                    'chatId':1,
+                    'participants':1,
+                    'receiver':1,
+                    'receiverId':1,
+                    'receiverImage':1
+                }
+            }, {
+                '$match': nameMatch
             }
         ]);
         const userGroups = await Group.aggregate([
@@ -180,7 +224,7 @@ const getContacts = async (req, res) => {
                     }
                 }
             }, {
-                '$match':groupMatch
+                '$match': groupMatch
             }
         ])
         res.status(200).json({ data: [...userChats, ...userGroups] });
@@ -197,28 +241,33 @@ const getMessages = async (req, res) => {
                 '$match': {
                     '_id': new mongoose.Types.ObjectId(chatId)
                 }
-            }, {
+            },
+            {
                 '$unwind': {
                     'path': '$participants'
                 }
-            }, {
+            },
+            {
                 '$match': {
                     'participants': {
                         '$ne': new mongoose.Types.ObjectId(userId)
                     }
                 }
-            }, {
+            },
+            {
                 '$lookup': {
                     'from': 'users',
                     'localField': 'participants',
                     'foreignField': '_id',
                     'as': 'receiver'
                 }
-            }, {
+            },
+            {
                 '$unwind': {
                     'path': '$receiver'
                 }
-            }, {
+            },
+            {
                 '$addFields': {
                     'receiverId': {
                         '$toString': '$receiver._id'
@@ -226,8 +275,76 @@ const getMessages = async (req, res) => {
                     'receiverImage': '$receiver.profileImage',
                     'receiver': '$receiver.name'
                 }
+            },
+            {
+                '$unwind': {
+                    'path': '$messages',
+                    'preserveNullAndEmptyArrays': true
+                }
+            },
+            {
+                '$lookup': {
+                    'from': 'messages',
+                    'localField': 'messages.messageId',
+                    'foreignField': '_id',
+                    'as': 'messageDetails'
+                }
+            },
+            {
+                '$unwind': {
+                    'path': '$messageDetails',
+                    'preserveNullAndEmptyArrays': true
+                }
+            },
+            // {
+            //     '$addFields': {
+            //         'messages.text': '$messageDetails.message',  // Assuming messages collection has a 'text' field
+            //         'messages.attachments': '$messageDetails.attachments' // If there are any attachments in messages
+            //     }
+            // },
+            {
+                '$addFields': {
+                    'messages.message': '$messageDetails.message',
+                    'dynamicKey': {
+                        '$arrayToObject': [
+                            [
+                                {
+                                    'k': '$messages.type',
+                                    'v': '$messageDetails.message'
+                                }
+                            ]
+                        ]
+                    }
+                }
+            }, {
+                '$project': {
+                    'messages': {
+                        '$mergeObjects': [
+                            '$messages', '$dynamicKey'
+                        ]
+                    },
+                    'chatId': 1,
+                    'participants': 1,
+                    'receiver': 1,
+                    'receiverId': 1,
+                    'receiverImage': 1,
+                    'receiverImage': 1,
+                    'messageDetails': 1
+                }
+            },
+            {
+                '$group': {
+                    '_id': '$_id',
+                    'chatId': { '$first': '$chatId' },
+                    'participants': { '$first': '$participants' },
+                    'receiverId': { '$first': '$receiverId' },
+                    'receiverImage': { '$first': '$receiverImage' },
+                    'receiver': { '$first': '$receiver' },
+                    'messages': { '$push': '$messages' } // Grouping messages back into an array
+                }
             }
         ]);
+
         res.status(200).json({ data: userChat });
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -271,7 +388,7 @@ const getGroupMessages = async (req, res) => {
         const groupChat = await GroupChat.aggregate([
             {
                 '$match': {
-                    'groupId':groupId
+                    'groupId': groupId
                 }
             }, {
                 '$addFields': {
@@ -297,6 +414,67 @@ const getGroupMessages = async (req, res) => {
                     'foreignField': '_id',
                     'as': 'members'
                 }
+            }, {
+                '$unwind': {
+                    'path': '$messages',
+                    'preserveNullAndEmptyArrays': true
+                }
+            },
+            {
+                '$lookup': {
+                    'from': 'messages',
+                    'localField': 'messages.messageId',
+                    'foreignField': '_id',
+                    'as': 'messageDetails'
+                }
+            },
+            {
+                '$unwind': {
+                    'path': '$messageDetails',
+                    'preserveNullAndEmptyArrays': true
+                }
+            },
+            // {
+            //     '$addFields': {
+            //         'messages.text': '$messageDetails.message',  // Assuming messages collection has a 'text' field
+            //         'messages.attachments': '$messageDetails.attachments' // If there are any attachments in messages
+            //     }
+            // }, 
+            {
+                '$addFields': {
+                    'messages.message': '$messageDetails.message',
+                    'dynamicKey': {
+                        '$arrayToObject': [
+                            [
+                                {
+                                    'k': '$messages.type',
+                                    'v': '$messageDetails.message'
+                                }
+                            ]
+                        ]
+                    }
+                }
+            }, {
+                '$project': {
+                    'messages': {
+                        '$mergeObjects': [
+                            '$messages', '$dynamicKey'
+                        ]
+                    },
+                    'chatId': 1,
+                    'group': 1,
+                    'groupId': 1,
+                    'members': 1,
+                }
+            },
+            {
+                '$group': {
+                    '_id': '$_id',
+                    'group': { '$first': '$group' },
+                    'groupId': { '$first': '$groupId' },
+                    'members': { '$first': '$members' },
+                    'messages': { '$push': '$messages' }
+                }
             }
         ]);
         res.status(200).json({ data: groupChat });
@@ -305,11 +483,11 @@ const getGroupMessages = async (req, res) => {
     }
 }
 
-const updateUserProfile = async(req,res) => {
+const updateUserProfile = async (req, res) => {
     try {
         const user = await User.findById(req['userId']);
-        if(!user){
-            return res.status(400).json({ message: `User does not exist` });   
+        if (!user) {
+            return res.status(400).json({ message: `User does not exist` });
         }
         let fileString;
         if (req.file) {
