@@ -23,6 +23,11 @@ const handleMessage = async (bytes, userId, chatType, chatId) => {
             newMessage["audio"] = messageData.audio;
             newMessage["sender"] = userId;
             newMessage["type"] = `audio`;
+        }else if(messageData.image){
+            messageType = `image`
+            newMessage["image"] = messageData.image;
+            newMessage["sender"] = userId;
+            newMessage["type"] = `image`;
         }
 
         if (chatType === 'group') {
@@ -35,7 +40,11 @@ const handleMessage = async (bytes, userId, chatType, chatId) => {
                 freshMessage = new Message({
                     message:messageData.audio
                 })
-            }            
+            }else if(messageData.image){
+                freshMessage = new Message({
+                    message:messageData.image
+                })
+            }                
             await freshMessage.save();
             newMessage["_id"] = freshMessage["_id"];
             let chat = await GroupChat.findOneAndUpdate(
@@ -64,7 +73,11 @@ const handleMessage = async (bytes, userId, chatType, chatId) => {
                 freshMessage = new Message({
                     message:messageData.audio
                 })
-            } 
+            }else if(messageData.image){
+                freshMessage = new Message({
+                    message:messageData.image
+                })
+            }  
             await freshMessage.save();
             newMessage["_id"] = freshMessage["_id"];
             let chat = await IndividualChat.findOneAndUpdate(
@@ -76,6 +89,7 @@ const handleMessage = async (bytes, userId, chatType, chatId) => {
                 } }, $addToSet: { participants: [userId, receiver] } },
                 { new: true, upsert: true }
             );
+            
             sendToUser(userId, receiver, chatId, newMessage);
         }
     } catch (error) {
